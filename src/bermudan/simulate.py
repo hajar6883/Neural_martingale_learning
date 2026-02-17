@@ -23,7 +23,7 @@ def simulate_gbm_paths(
 
     S[:, 0]= S0
     for t in range(1, n_steps+1):
-        S[:,t] = S[:, t-1]* np.exp((r - 0.5*sigma**2)*dt + np.sqrt(dt)*Z[:,t-1])
+        S[:,t] = S[:, t-1]* np.exp((r - 0.5*sigma**2)*dt + sigma*np.sqrt(dt)*Z[:,t-1])
 
     return S
 
