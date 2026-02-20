@@ -3,8 +3,9 @@
 import numpy as np 
 from typing import Callable
 from bermudan.lsmc import lsmc_price
-from bermudan.payoff import put_payoff
-
+from scipy.optimize import minimize_scalar
+import logging
+logger = logging.getLogger(__name__)
 
 def compute_martingale(paths: np.ndarray, payoff_fct: Callable[[np.ndarray, float], np.ndarray], K: float, r: float, T: float) -> np.ndarray:
 
@@ -15,16 +16,20 @@ def compute_martingale(paths: np.ndarray, payoff_fct: Callable[[np.ndarray, floa
     """
 
     _, _, continuation_values, value_process = lsmc_price(paths, K, r, T, payoff_fct)
-    print("value_process mean:", np.mean(value_process))
-    print("continuation mean:", np.mean(continuation_values))
-    n_paths, n_exec_times = value_process.shape
 
+    logger.debug(
+        "Martingale input stats | value_mean=%.6f continuation_mean=%.6f",
+        np.mean(value_process),
+        np.mean(continuation_values)
+        )
+
+    n_paths, n_exec_times = value_process.shape
     
     doob_increments = np.zeros((n_paths, n_exec_times))
     doob_increments[:,0]= 0 
+
     dt = T / (n_exec_times - 1)
     discount = np.exp(-r * dt)
-
 
 
     for t in range(n_exec_times-1):
@@ -63,6 +68,51 @@ def compute_upper_bound(
     upper_bound = np.mean(pathwise_max)
 
     return upper_bound
+
+
+def compute_upper_bound_with_scaling(
+        paths: np.ndarray,
+        payoff_fct: Callable[[np.ndarray, float], np.ndarray],
+        K: float,
+        r: float,
+        T: float
+    )-> float:
+
+    martingale = compute_martingale(paths,  payoff_fct, K, r, T)
+    payoff = payoff_fct(paths, K)
+    _, n_exec_times = paths.shape
+
+    dt = T/ (n_exec_times - 1 )
+    discount_factors = np.exp(-r*dt*np.arange(n_exec_times))
+
+    discounted_payoff = payoff * discount_factors
+    
+    def objective(alpha):
+
+        scaled_process = discounted_payoff - alpha * martingale
+        pathwise_max = np.max(scaled_process, axis = 1)
+        return np.mean(pathwise_max)
+    
+    alpha0 = 1.0
+    opt = minimize_scalar(
+                objective,
+                bounds=(0.0, 5.0),
+                method='bounded'
+            )   
+     
+    alpha_inf = opt.x
+    logger.debug(
+        "Martingale input stats | init alpha=%.6f optimal alpha=%.6f",
+        alpha0,
+        alpha_inf
+        )
+    return  objective(alpha_inf)
+
+
+
+
+
+
 
 
 

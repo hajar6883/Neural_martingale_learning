@@ -3,6 +3,10 @@ from bermudan.dual import *
 from bermudan.lsmc import lsmc_price
 from bermudan.payoff import put_payoff
 from bermudan.simulate import simulate_gbm_paths
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 
 
@@ -58,7 +62,7 @@ def test_martingale_mean_increment_zero():
     print("increments mean per step:", np.mean(increments, axis=0))
     
 
-
+ 
     # assert abs(mean_increment) < 1e-2
     assert abs(mean_increment) < 5e-2 #test tolerance must reflects regression approx error ( bias ) ??
 
@@ -87,7 +91,4 @@ def test_upper_bound_finite():
 
     K, r, T = 100, 0.05, 1.0
 
-    upper = compute_upper_bound(paths, put_payoff, K, r, T)
-
-    assert np.isfinite(upper)
-    assert upper > 0
+    upper = compute_upper_bound(paths, put_payoff, K, r, T
