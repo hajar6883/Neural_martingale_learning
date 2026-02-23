@@ -91,4 +91,87 @@ def test_upper_bound_finite():
 
     K, r, T = 100, 0.05, 1.0
 
-    upper = compute_upper_bound(paths, put_payoff, K, r, T
+    upper = compute_upper_bound(paths, put_payoff, K, r, T)
+
+    assert np.isfinite(upper)
+    assert upper > 0
+
+
+def test_scaled_upper_bound_finite():
+
+    np.random.seed(0)
+
+    paths = simulate_gbm_paths(
+        S0=100, r=0.05, sigma=0.2,
+        T=1.0, n_steps=10, n_paths=5000
+    )
+
+    K, r, T = 100, 0.05, 1.0
+
+    upper = compute_upper_bound_with_scaling(
+        paths, put_payoff, K, r, T
+    )
+
+    assert np.isfinite(upper)
+    assert upper > 0
+
+
+def test_scaled_upper_bound_tighter():
+
+    np.random.seed(0)
+
+    paths = simulate_gbm_paths(
+        S0=100, r=0.05, sigma=0.2,
+        T=1.0, n_steps=10, n_paths=5000
+    )
+
+    K, r, T = 100, 0.05, 1.0
+
+    upper_unscaled = compute_upper_bound(
+        paths, put_payoff, K, r, T
+    )
+
+    upper_scaled = compute_upper_bound_with_scaling(
+        paths, put_payoff, K, r, T
+    )
+    logger.debug(
+        "upper_scaled=%.6f upper_unscaled=%.6f",
+        upper_scaled,
+        upper_unscaled
+    )
+
+
+
+    assert upper_scaled <= upper_unscaled + 1e-8
+
+def test_scaled_upper_bound_above_lower_bound():
+
+    np.random.seed(0)
+
+    paths = simulate_gbm_paths(
+        S0=100, r=0.05, sigma=0.2,
+        T=1.0, n_steps=10, n_paths=5000
+    )
+
+    K, r, T = 100, 0.05, 1.0
+
+    lower, _, _, _ = lsmc_price(
+        paths, K, r, T, put_payoff
+    )
+
+    upper_scaled = compute_upper_bound_with_scaling(
+        paths, put_payoff, K, r, T
+    )
+    logger.debug(
+        "upper_scaled=%.6f lower=%.6f",
+        upper_scaled,
+        lower
+    )
+
+    assert upper_scaled >= lower
+
+
+
+
+
+

@@ -1,20 +1,28 @@
-import logging
-logging.basicConfig(level=logging.DEBUG, 
-                    format = "%(asctime)s | %(name)s | %(levelname)s | %(message)s"
-                    )
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 
-from bermudan.dual import compute_martingale
-import numpy as np
+from bermudan.neural_martingale import *
+import torch 
 
-# dummy inputs
-paths = np.random.randn(1000, 10)
 
-def payoff(x, K):
-    return np.maximum(x - K, 0)
+S_t  = np.array([107.66, 99, 97.02, 115, 120]) # (5,)
 
-K = 100
-r = 0.01
-T = 1.0
+t_idx = 1
+n_times = 5
+feats = make_features(torch.from_numpy(S_t),t_idx, n_times )
+# print(feats)
+# print(feats.shape)
 
-martingale = compute_martingale(paths, payoff, K, r, T)
+f_net = MLP(2, 16, 1)
+g_net = MLP(2, 16, 1)
+
+import torch
+
+x = torch.tensor(2.0, requires_grad=True)
+
+y = x * 3
+z = y + 4
+loss = z**2
+
+print(loss.grad_fn)

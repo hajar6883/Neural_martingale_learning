@@ -5,6 +5,8 @@ from typing import Callable
 from bermudan.lsmc import lsmc_price
 from scipy.optimize import minimize_scalar
 import logging
+from bermudan.neural_martingale import train_neural_martingale, build_martingale_from_nets
+
 logger = logging.getLogger(__name__)
 
 def compute_martingale(paths: np.ndarray, payoff_fct: Callable[[np.ndarray, float], np.ndarray], K: float, r: float, T: float) -> np.ndarray:
@@ -110,6 +112,34 @@ def compute_upper_bound_with_scaling(
 
 
 
+def compute_upper_bound_neural(
+            train_paths: np.ndarray,
+            test_paths: np.ndarray,
+            payoff_fct: Callable[[np.ndarray, float], np.ndarray],
+            K: float,
+            r: float,
+            T: float,
+            device: str = "cpu",
+        ) -> float:
+    
+    #train nets:
+    f_net, g_net = train_neural_martingale(
+        train_paths, payoff_fct, K, r, T,
+        n_epochs=30, batch_size=2048, lr=1e-3, lam=1e-3, device=device
+    )
+
+    # build martingale on test_paths
+    martingale = build_martingale_from_nets(test_paths, f_net, g_net)
+
+    # 3) compute dual upper bound on test_paths (same as your compute_upper_bound)
+    payoff = payoff_fct(test_paths, K)
+    _, n_exec_times = test_paths.shape
+    dt = T / (n_exec_times - 1)
+    discount_factors = np.exp(-r * dt * np.arange(n_exec_times))
+    discounted_payoff = payoff * discount_factors
+
+    dual_process = discounted_payoff - martingale
+    return float(np.mean(np.max(dual_process, axis=1)))
 
 
 
