@@ -5,7 +5,7 @@ from typing import Callable
 from bermudan.lsmc import lsmc_price
 from scipy.optimize import minimize_scalar
 import logging
-from bermudan.neural_martingale import train_neural_martingale, build_martingale_from_nets
+from bermudan.neural_martingale import train_neural_martingale, construct_neural_martingale
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +129,7 @@ def compute_upper_bound_neural(
     )
 
     # build martingale on test_paths
-    martingale = build_martingale_from_nets(test_paths, f_net, g_net)
+    martingale = construct_neural_martingale(test_paths, f_net, g_net)
 
     # 3) compute dual upper bound on test_paths (same as your compute_upper_bound)
     payoff = payoff_fct(test_paths, K)

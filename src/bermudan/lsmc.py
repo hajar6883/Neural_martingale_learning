@@ -56,12 +56,11 @@ def lsmc_price(
 
         # X =  polynomial_basis(ITM_paths) # only regress on ITM paths for variance reduction purposes
         # Y = discount * value_process[:,time+1][mask]   # continuation target Y_t = disc(V_t+1) in dt
-        X =  polynomial_basis(paths[:, time])
+        X = polynomial_basis(paths[:, time], K=K)
         Y = discount * value_process[:,time+1]
         beta = np.linalg.lstsq(X, Y, rcond=None)[0]
 
-        X_all = polynomial_basis(paths[:, time])
-        continuation = X_all @ beta
+        continuation = X @ beta
 
         continuation_values[:, time] = continuation
         exercise = immediate_payoff[:,time] > continuation # decision_rule 

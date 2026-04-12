@@ -14,11 +14,11 @@ def simulate_gbm_paths(
     """
     Returns array shape: (n_paths, n_steps+1)
     """
-    if seed is not None:
-        np.random.seed(seed)
+    
 
     dt = T/ n_steps
-    Z = np.random.randn(n_paths, n_steps)
+    rng = np.random.default_rng(seed)
+    Z = rng.standard_normal((n_paths, n_steps))
     S = np.zeros((n_paths, n_steps+1))
 
     S[:, 0]= S0

@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import pytest
+import logging
 
 from bermudan.simulate import simulate_gbm_paths
 from bermudan.payoff import put_payoff
@@ -13,8 +14,9 @@ from bermudan.dual import (
 
 from bermudan.neural_martingale import (
     train_neural_martingale,
-    build_martingale_from_nets,
+    construct_neural_martingale,
 )
+
 
 
 def compute_upper_bound_from_martingale(paths, martingale, payoff_fct, K, r, T):
@@ -106,7 +108,7 @@ def test_neural_martingale_dual_bounds(device):
         K,
         r,
         T,
-        n_epochs=25,
+        n_epochs=50,
         batch_size=2048,
         lr=1e-3,
         lam=1e-3,
@@ -114,7 +116,7 @@ def test_neural_martingale_dual_bounds(device):
     )
 
     
-    martingale_nn = build_martingale_from_nets(
+    martingale_nn = construct_neural_martingale(
         test_paths,
         f_net,
         g_net,
@@ -157,7 +159,7 @@ def test_neural_martingale_dual_bounds(device):
     assert upper_nn >= lower_bound - 1e-6
 
     # neural should improve or match scaled bound (not guaranteed always, but usually)
-    # assert upper_nn <= upper_doob + 0.5
+    assert upper_nn <= upper_doob + 0.5
 
     # sanity check gap not exploding
-    # assert gap_nn < 2.0
+    assert gap_nn < 2.0
