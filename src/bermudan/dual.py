@@ -9,6 +9,11 @@ from bermudan.neural_martingale import train_neural_martingale, construct_neural
 
 logger = logging.getLogger(__name__)
 
+
+def ci(samples: np.ndarray) -> float:
+    """95% confidence interval half-width: 1.96 * std / sqrt(N)."""
+    return 1.96 * np.std(samples) / np.sqrt(len(samples))
+
 def compute_martingale(paths: np.ndarray, payoff_fct: Callable[[np.ndarray, float], np.ndarray], K: float, r: float, T: float) -> np.ndarray:
 
     """
@@ -47,10 +52,12 @@ def compute_upper_bound(
         K: float,
         r: float,
         T: float
-    ) -> float:
+    ) -> tuple:
     """
     Compute dual upper bound price using martingale correction.
 
+    Returns:
+        (estimate, half_width): mean and 95% CI half-width
     """
 
     martingale = compute_martingale(paths, payoff_fct, K, r, T)
@@ -62,14 +69,10 @@ def compute_upper_bound(
     discount_factors = np.exp(-r * dt * np.arange(n_exec_times))
 
     discounted_payoff = payoff * discount_factors
-
     dual_process = discounted_payoff - martingale
-
     pathwise_max = np.max(dual_process, axis=1)
 
-    upper_bound = np.mean(pathwise_max)
-
-    return upper_bound
+    return float(np.mean(pathwise_max)), float(ci(pathwise_max))
 
 
 def compute_upper_bound_with_scaling(
@@ -78,37 +81,36 @@ def compute_upper_bound_with_scaling(
         K: float,
         r: float,
         T: float
-    )-> float:
+    ) -> tuple:
+    """
+    Returns:
+        (estimate, half_width): mean and 95% CI half-width at optimal alpha
+    """
 
-    martingale = compute_martingale(paths,  payoff_fct, K, r, T)
+    martingale = compute_martingale(paths, payoff_fct, K, r, T)
     payoff = payoff_fct(paths, K)
     _, n_exec_times = paths.shape
 
-    dt = T/ (n_exec_times - 1 )
-    discount_factors = np.exp(-r*dt*np.arange(n_exec_times))
-
+    dt = T / (n_exec_times - 1)
+    discount_factors = np.exp(-r * dt * np.arange(n_exec_times))
     discounted_payoff = payoff * discount_factors
-    
-    def objective(alpha):
 
-        scaled_process = discounted_payoff - alpha * martingale
-        pathwise_max = np.max(scaled_process, axis = 1)
-        return np.mean(pathwise_max)
-    
-    alpha0 = 1.0
+    def pathwise_max_at(alpha):
+        return np.max(discounted_payoff - alpha * martingale, axis=1)
+
     opt = minimize_scalar(
-                objective,
-                bounds=(0.0, 5.0),
-                method='bounded'
-            )   
-     
-    alpha_inf = opt.x
+        lambda a: np.mean(pathwise_max_at(a)),
+        bounds=(0.0, 5.0),
+        method='bounded'
+    )
+
     logger.debug(
         "Martingale input stats | init alpha=%.6f optimal alpha=%.6f",
-        alpha0,
-        alpha_inf
-        )
-    return  objective(alpha_inf)
+        1.0, opt.x
+    )
+
+    samples = pathwise_max_at(opt.x)
+    return float(np.mean(samples)), float(ci(samples))
 
 
 
@@ -120,26 +122,26 @@ def compute_upper_bound_neural(
             r: float,
             T: float,
             device: str = "cpu",
-        ) -> float:
-    
-    #train nets:
+        ) -> tuple:
+    """
+    Returns:
+        (estimate, half_width): mean and 95% CI half-width
+    """
     f_net, g_net = train_neural_martingale(
         train_paths, payoff_fct, K, r, T,
         n_epochs=30, batch_size=2048, lr=1e-3, lam=1e-3, device=device
     )
 
-    # build martingale on test_paths
-    martingale = construct_neural_martingale(test_paths, f_net, g_net)
+    martingale = construct_neural_martingale(test_paths, f_net, g_net, K)
 
-    # 3) compute dual upper bound on test_paths (same as your compute_upper_bound)
     payoff = payoff_fct(test_paths, K)
     _, n_exec_times = test_paths.shape
     dt = T / (n_exec_times - 1)
     discount_factors = np.exp(-r * dt * np.arange(n_exec_times))
     discounted_payoff = payoff * discount_factors
 
-    dual_process = discounted_payoff - martingale
-    return float(np.mean(np.max(dual_process, axis=1)))
+    samples = np.max(discounted_payoff - martingale, axis=1)
+    return float(np.mean(samples)), float(ci(samples))
 
 
 

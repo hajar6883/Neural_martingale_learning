@@ -4,6 +4,21 @@ import torch.nn as nn
 from typing import Callable, Tuple
 
 
+def make_features(S: torch.Tensor, t: int, n_steps: int, K: float) -> torch.Tensor:
+    """
+    Encode stock price and time into a normalized 2D feature vector.
+
+    Features:
+        log(S/K)  — log-moneyness, 0 when ATM, positive OTM for calls
+        tau       — time to maturity as fraction of horizon in [0,1]
+                    tau=1 at t=0 (full time left), tau=0 at expiry
+    """
+    log_moneyness = torch.log(S / K).unsqueeze(1)                              # (N,1)
+    tau = torch.full((S.shape[0], 1), (n_steps - 1 - t) / (n_steps - 1),
+                     device=S.device)                                           # (N,1)
+    return torch.cat([log_moneyness, tau], dim=1)                              # (N,2)
+
+
 class MLP(nn.Module):
     def __init__(self, in_dim: int, hidden_dim: int, out_dim: int):
         super().__init__()
@@ -20,19 +35,18 @@ class MLP(nn.Module):
 
 
 @torch.no_grad()  # no compute graph needed during martingale construction
-def construct_neural_martingale(paths_np: np.ndarray, f_net: nn.Module, g_net: nn.Module) -> np.ndarray:
+def construct_neural_martingale(paths_np: np.ndarray, f_net: nn.Module, g_net: nn.Module, K: float) -> np.ndarray:
     device = next(f_net.parameters()).device
     paths = torch.tensor(paths_np, dtype=torch.float32, device=device)
     N, n_steps = paths.shape
 
     M = torch.zeros((N, n_steps), device=device)
-    for t in range(n_steps - 1):  
-        X_t   = paths[:, t].unsqueeze(1)      # (N,1) 
-        X_tp1 = paths[:, t+1].unsqueeze(1)    # (N,1)
-        f_input = torch.cat([X_t, X_tp1], dim=1)  # (N,2)
+    for t in range(n_steps - 1):
+        feat_t   = make_features(paths[:, t],   t,   n_steps, K)  # (N,2)
+        feat_tp1 = make_features(paths[:, t+1], t+1, n_steps, K)  # (N,2)
 
-        f = f_net(f_input).squeeze(-1)   # (N,)
-        g = g_net(X_t).squeeze(-1)       # (N,) 
+        f = f_net(torch.cat([feat_t, feat_tp1], dim=1)).squeeze(-1)  # (N,) — f takes (feat_t, feat_{t+1})
+        g = g_net(feat_t).squeeze(-1)                                 # (N,) — g takes feat_t only
 
         dM = f - g
         M[:, t+1] = M[:, t] + dM
@@ -63,10 +77,11 @@ def train_neural_martingale(
     payoff_np = payoff_fct(train_paths_np, K)  # (N,T)
     payoff_all = torch.tensor(payoff_np, dtype=torch.float32, device=device)
 
-    # f sees the transition (S_t, S_{t+1}) -> in_dim=2
-    # g sees only current state (S_t,)     -> in_dim=1  
-    f_net = MLP(in_dim=2, hidden_dim=64, out_dim=1).to(device)  
-    g_net = MLP(in_dim=1, hidden_dim=64, out_dim=1).to(device)
+    # features are [log(S/K), tau] -> 2 dims per timestep
+    # f sees (feat_t, feat_{t+1})  -> in_dim=4
+    # g sees feat_t only           -> in_dim=2
+    f_net = MLP(in_dim=4, hidden_dim=64, out_dim=1).to(device)
+    g_net = MLP(in_dim=2, hidden_dim=64, out_dim=1).to(device)
 
     opt = torch.optim.Adam(list(f_net.parameters()) + list(g_net.parameters()), lr=lr)
     idx = torch.arange(N, device=device)
@@ -85,12 +100,11 @@ def train_neural_martingale(
             reg_accum   = 0.0
 
             for t in range(Tn - 1):
-                X_t   = paths[:, t].unsqueeze(1)      # (B,1) 
-                X_tp1 = paths[:, t+1].unsqueeze(1)    # (B,1) 
-                f_input = torch.cat([X_t, X_tp1], dim=1)  # (B,2)
+                feat_t   = make_features(paths[:, t],   t,   Tn, K)  # (B,2)
+                feat_tp1 = make_features(paths[:, t+1], t+1, Tn, K)  # (B,2)
 
-                f = f_net(f_input).squeeze(1)  # (B,)
-                g = g_net(X_t).squeeze(1)      # (B,)
+                f = f_net(torch.cat([feat_t, feat_tp1], dim=1)).squeeze(1)  # (B,)
+                g = g_net(feat_t).squeeze(1)                                 # (B,)
 
                 dM = f - g
                 M[:, t+1] = M[:, t] + dM

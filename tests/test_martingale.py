@@ -79,7 +79,7 @@ def test_upper_bound_greater_than_lower_bound():
 
     lower, _, _, _ = lsmc_price(paths, K, r, T,put_payoff)
 
-    upper = compute_upper_bound(paths, put_payoff, K, r, T)
+    upper, _ = compute_upper_bound(paths, put_payoff, K, r, T)
 
     assert upper >= lower
 
@@ -91,10 +91,11 @@ def test_upper_bound_finite():
 
     K, r, T = 100, 0.05, 1.0
 
-    upper = compute_upper_bound(paths, put_payoff, K, r, T)
+    upper, hw = compute_upper_bound(paths, put_payoff, K, r, T)
 
     assert np.isfinite(upper)
     assert upper > 0
+    assert hw > 0
 
 
 def test_scaled_upper_bound_finite():
@@ -108,12 +109,13 @@ def test_scaled_upper_bound_finite():
 
     K, r, T = 100, 0.05, 1.0
 
-    upper = compute_upper_bound_with_scaling(
+    upper, hw = compute_upper_bound_with_scaling(
         paths, put_payoff, K, r, T
     )
 
     assert np.isfinite(upper)
     assert upper > 0
+    assert hw > 0
 
 
 def test_scaled_upper_bound_tighter():
@@ -127,11 +129,11 @@ def test_scaled_upper_bound_tighter():
 
     K, r, T = 100, 0.05, 1.0
 
-    upper_unscaled = compute_upper_bound(
+    upper_unscaled, _ = compute_upper_bound(
         paths, put_payoff, K, r, T
     )
 
-    upper_scaled = compute_upper_bound_with_scaling(
+    upper_scaled, _ = compute_upper_bound_with_scaling(
         paths, put_payoff, K, r, T
     )
     logger.debug(
@@ -139,8 +141,6 @@ def test_scaled_upper_bound_tighter():
         upper_scaled,
         upper_unscaled
     )
-
-
 
     assert upper_scaled <= upper_unscaled + 1e-8
 
@@ -159,7 +159,7 @@ def test_scaled_upper_bound_above_lower_bound():
         paths, K, r, T, put_payoff
     )
 
-    upper_scaled = compute_upper_bound_with_scaling(
+    upper_scaled, _ = compute_upper_bound_with_scaling(
         paths, put_payoff, K, r, T
     )
     logger.debug(
