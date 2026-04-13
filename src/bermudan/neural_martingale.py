@@ -128,7 +128,7 @@ def train_neural_martingale(
             for t in range(Tn - 1):
                 feat_t = make_features(paths[:, t], t, Tn, K)  # (B, 2)
                 h = h_net(feat_t).squeeze(1)                    # (B,)
-                M[:, t+1] = M[:, t] + h * Z[:, t]              # martingale by construction
+                M[:, t+1] = M[:, t] + h * Z[:, t]     # martingale by construction
 
             discounted_payoff = payoff * disc.unsqueeze(0)      # (B, T)
             pathwise_max = torch.max(discounted_payoff - M, dim=1).values  # (B,)
