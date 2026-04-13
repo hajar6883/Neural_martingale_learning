@@ -120,6 +120,7 @@ def compute_upper_bound_neural(
             payoff_fct: Callable[[np.ndarray, float], np.ndarray],
             K: float,
             r: float,
+            sigma: float,
             T: float,
             device: str = "cpu",
         ) -> tuple:
@@ -127,12 +128,12 @@ def compute_upper_bound_neural(
     Returns:
         (estimate, half_width): mean and 95% CI half-width
     """
-    f_net, g_net = train_neural_martingale(
-        train_paths, payoff_fct, K, r, T,
-        n_epochs=30, batch_size=2048, lr=1e-3, lam=1e-3, device=device
+    h_net = train_neural_martingale(
+        train_paths, payoff_fct, K, r, sigma, T,
+        n_epochs=30, batch_size=2048, lr=1e-3, device=device
     )
 
-    martingale = construct_neural_martingale(test_paths, f_net, g_net, K)
+    martingale = construct_neural_martingale(test_paths, h_net, K, r, sigma, T)
 
     payoff = payoff_fct(test_paths, K)
     _, n_exec_times = test_paths.shape

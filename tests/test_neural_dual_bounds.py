@@ -104,24 +104,26 @@ def test_neural_martingale_dual_bounds(device):
         T,
     )
 
-    f_net, g_net = train_neural_martingale(
+    h_net = train_neural_martingale(
         train_paths,
         put_payoff,
         K,
         r,
+        sigma,
         T,
         n_epochs=50,
         batch_size=2048,
         lr=1e-3,
-        lam=1e-3,
         device=device,
     )
 
     martingale_nn = construct_neural_martingale(
         test_paths,
-        f_net,
-        g_net,
+        h_net,
         K,
+        r,
+        sigma,
+        T,
     )
 
     upper_nn = compute_upper_bound_from_martingale(
